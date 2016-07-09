@@ -1,0 +1,4 @@
+# Post File
+curl -X POST -F file=@txt.log http://localhost:5000
+# Get File
+curl http://localhost:5000/usage.txt > usage.txt
