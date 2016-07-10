@@ -13,13 +13,17 @@ import urllib
 import cgi
 import shutil
 import mimetypes
-from StringIO import StringIO
+try:
+    from cStringIO import StringIO
+except ImportError:
+    from StringIO import StringIO
 import base64
 import time
 import re
 import uuid
 import hashlib
 import sys
+import threading
 
 # TODO: mkdir base_url? or error out if missing
 
@@ -30,7 +34,7 @@ __version__ = "0.6"
 __author__ = "apple"
 __contributor__ = "bones7456" # Post Uploads
 __contributor__ = "wonjohnchoi" # Adding Basic Auth
-__contributor__ = "zph" # Rebasing script from Apple, merging Post and Basic Auth, addin
+__contributor__ = "zph" # Rebasing script from Apple, merging Post and Basic Auth, +self-destruct, +auto-gen passwords
 
 
 __all__ = ["SimpleHTTPRequestHandler"]
@@ -42,6 +46,7 @@ class HTTPConfig():
         self.port = int(os.getenv('PORT', '5000'))
         self.username = os.getenv('BASIC_AUTH_USER', 'admin')
         self.password = os.getenv('BASIC_AUTH_PASSWORD', os.urandom(20).encode('hex'))
+        self.self_destruct_delay = os.getenv('SELF_DESTRUCT_DELAY', 600)
 
 config = HTTPConfig()
 
@@ -285,8 +290,10 @@ class SimpleHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
                 meta = {'filename': original_filename,
                         'md5': md5,
                         'path': fn}
+                msg = "File '{filename}' with MD5 {md5} uploaded!".format(**meta)
+                log.info(msg)
                 return (True,
-                        "File '{filename}' with MD5 {md5} uploaded!".format(**meta),
+                        msg,
                         meta)
 
             else:
@@ -369,14 +376,11 @@ class ErrorMissingOutputDir(Exception):
         self.out = out
         self.msg = "Error: unable to find {}. Terminating server.".format(out)
 
+def self_destruct(shutdown):
+    log.fatal("Time ran out for server. Killing process for security.")
+    shutdown()
 
-def main(HandlerClass=SimpleHTTPRequestHandler,
-         ServerClass=BaseHTTPServer.HTTPServer):
-    c = config
-    log.info('listening on {}:{}'.format(c.host, c.port))
-    log.info("Auth {}:{}".format(c.username, c.password))
-    log.info('Starting server, use <Ctrl-C> to stop')
-
+def ensure_output_path(c):
     output_dir = os.path.join(os.getcwd(), c.base_url)
     try:
         if not os.path.exists(output_dir):
@@ -385,7 +389,18 @@ def main(HandlerClass=SimpleHTTPRequestHandler,
         log.fatal(e.msg)
         sys.exit(1)
 
+def main(HandlerClass=SimpleHTTPRequestHandler,
+         ServerClass=BaseHTTPServer.HTTPServer):
+    c = config
+    log.info('listening on {}:{}'.format(c.host, c.port))
+    log.info("Auth {}:{}".format(c.username, c.password))
+    log.info("Server will shutdown in {} seconds(s)".format(c.self_destruct_delay))
+    log.info('Starting server, use <Ctrl-C> to stop')
+
+    ensure_output_path(c)
     server = ServerClass((c.host, c.port), HandlerClass)
+
+    threading.Timer(c.self_destruct_delay, self_destruct, [server.shutdown]).start()
     server.serve_forever()
 
 
