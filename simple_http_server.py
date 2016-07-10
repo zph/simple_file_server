@@ -25,10 +25,7 @@ import hashlib
 import sys
 import threading
 
-# TODO: mkdir base_url? or error out if missing
-
 import logging as log
-log.basicConfig(format='%(asctime)s %(message)s', level=log.DEBUG)
 
 __version__ = "0.6"
 __author__ = "apple"
@@ -391,6 +388,9 @@ def ensure_output_path(c):
 
 def main(HandlerClass=SimpleHTTPRequestHandler,
          ServerClass=BaseHTTPServer.HTTPServer):
+
+    log.basicConfig(format='%(asctime)s %(message)s', level=log.DEBUG)
+
     c = config
     log.info('listening on {}:{}'.format(c.host, c.port))
     log.info("Auth {}:{}".format(c.username, c.password))
